@@ -1,1 +1,1 @@
-manual upload main.tf
+# Terraform AWS Infra Setup
