@@ -134,8 +134,14 @@ resource "aws_launch_template" "web_asg_lt" {
   image_id      = "ami-05576a079321f21f8"
   instance_type = "t2.micro"
   key_name      = "aalimsee-keypair"
+  
+metadata_options {
+    http_tokens        = "optional"  # Allows both IMDSv1 and IMDSv2
+    http_endpoint      = "enabled"   # Enables access to the metadata service
+    http_put_response_hop_limit = 2   # Optional, sets the hop limit for metadata requests
+  }
 
-  user_data = base64encode(<<-EOF
+user_data = base64encode(<<-EOF
 #!/bin/bash
 yum update -y
 yum install httpd -y
