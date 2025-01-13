@@ -221,13 +221,13 @@ resource "aws_lb" "public_alb" {
 }
 
 resource "aws_lb_target_group" "public_tg" {
-  name     = "aalimsee-tf-target-group"
+  name     = "aalimsee-tf-alb-target-group"
   port     = 80
   protocol = "HTTP"
   vpc_id   = aws_vpc.aalimsee_tf_main.id
 
   tags = {
-    Name       = "aalimsee-tf-target-group"
+    Name       = "aalimsee-tf-alb-target-group"
     CreatedBy  = "aalimsee-tf"
   }
 }
