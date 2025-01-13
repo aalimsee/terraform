@@ -1,10 +1,43 @@
+# Define Provider
 provider "aws" {
-  region = "us-east-1"
+  region = var.region
 }
 
+# Variables
+variable "region" {
+  default = "us-east-1"
+}
+
+variable "vpc_cidr" {
+  default = "10.0.0.0/16"
+}
+
+variable "key_name" {
+  default = "aalimsee-keypair"
+}
+
+variable "ami_id" {
+  default = "ami-05576a079321f21f8"
+}
+
+variable "public_subnet_cidr_blocks" {
+  default = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+}
+
+variable "private_subnet_cidr_blocks" {
+  default = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
+}
+
+variable "az_count" {
+  default = 3
+}
+
+# Data source to fetch availability zones
+data "aws_availability_zones" "available" {}
+
 # Create a VPC
-resource "aws_vpc" "aalimsee_tf_main" {
-  cidr_block           = "10.0.0.0/16"
+resource "aws_vpc" "main" {
+  cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
 
@@ -13,11 +46,11 @@ resource "aws_vpc" "aalimsee_tf_main" {
   }
 }
 
-# Create Public Subnets in 3 Availability Zones
-resource "aws_subnet" "aalimsee_tf_public" {
-  count                   = 3
-  vpc_id                  = aws_vpc.aalimsee_tf_main.id
-  cidr_block              = "10.0.${count.index + 1}.0/24"
+# Public Subnets
+resource "aws_subnet" "public" {
+  count                   = var.az_count
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.public_subnet_cidr_blocks[count.index]
   map_public_ip_on_launch = true
   availability_zone       = data.aws_availability_zones.available.names[count.index]
 
@@ -26,11 +59,11 @@ resource "aws_subnet" "aalimsee_tf_public" {
   }
 }
 
-# Create Private Subnets in 3 Availability Zones
-resource "aws_subnet" "aalimsee_tf_private" {
-  count             = 3
-  vpc_id            = aws_vpc.aalimsee_tf_main.id
-  cidr_block        = "10.0.${count.index + 4}.0/24"
+# Private Subnets
+resource "aws_subnet" "private" {
+  count             = var.az_count
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.private_subnet_cidr_blocks[count.index]
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
   tags = {
@@ -38,22 +71,22 @@ resource "aws_subnet" "aalimsee_tf_private" {
   }
 }
 
-# Create an Internet Gateway
-resource "aws_internet_gateway" "aalimsee_tf_igw" {
-  vpc_id = aws_vpc.aalimsee_tf_main.id
+# Internet Gateway
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
 
   tags = {
     Name = "aalimsee-tf-igw"
   }
 }
 
-# Create a Route Table for the Public Subnets
-resource "aws_route_table" "aalimsee_tf_public" {
-  vpc_id = aws_vpc.aalimsee_tf_main.id
+# Route Table for Public Subnets
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.aalimsee_tf_igw.id
+    gateway_id = aws_internet_gateway.main.id
   }
 
   tags = {
@@ -62,216 +95,152 @@ resource "aws_route_table" "aalimsee_tf_public" {
 }
 
 # Associate Route Table with Public Subnets
-resource "aws_route_table_association" "aalimsee_tf_public" {
-  count          = 3
-  subnet_id      = aws_subnet.aalimsee_tf_public[count.index].id
-  route_table_id = aws_route_table.aalimsee_tf_public.id
+resource "aws_route_table_association" "public" {
+  count          = var.az_count
+  subnet_id      = aws_subnet.public[count.index].id
+  route_table_id = aws_route_table.public.id
 }
 
-# Create a Web Security Group
-resource "aws_security_group" "aalimsee_tf_web_sg" {
-  name = "aalimsee-tf-web-sg"
-  vpc_id = aws_vpc.aalimsee_tf_main.id
+# Security Group for Web Instances
+resource "aws_security_group" "web" {
+  name   = "aalimsee-tf-web-sg"
+  vpc_id = aws_vpc.main.id
 
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  ingress = [
+    {
+      from_port   = 80
+      to_port     = 80
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    },
+    {
+      from_port   = 22
+      to_port     = 22
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  ]
 
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  egress = [
+    {
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  ]
 
   tags = {
     Name = "aalimsee-tf-web-sg"
   }
 }
 
-# Create a Database Security Group
-resource "aws_security_group" "aalimsee_tf_db_sg" {
-  name = "aalimsee-tf-db-sg"
-  vpc_id = aws_vpc.aalimsee_tf_main.id
+# Security Group for Database Instances
+resource "aws_security_group" "db" {
+  name   = "aalimsee-tf-db-sg"
+  vpc_id = aws_vpc.main.id
 
-  # Allow NLB to connect to DB on port 3306
-  ingress {
-    from_port         = 3306
-    to_port           = 3306
-    protocol          = "tcp"
-    security_groups   = [aws_security_group.aalimsee_tf_nlb_sg.id]
-    description       = "Allow NLB to access DB"
-  }
+  ingress = [
+    {
+      from_port       = 3306
+      to_port         = 3306
+      protocol        = "tcp"
+      security_groups = [aws_security_group.nlb.id]
+    }
+  ]
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  egress = [
+    {
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  ]
 
   tags = {
     Name = "aalimsee-tf-db-sg"
   }
 }
 
+# Security Group for NLB
+resource "aws_security_group" "nlb" {
+  name   = "aalimsee-tf-nlb-sg"
+  vpc_id = aws_vpc.main.id
 
-# Create a Security Group for NLB
-resource "aws_security_group" "aalimsee_tf_nlb_sg" {
-  name = "aalimsee-tf-nlb-sg"
-  vpc_id = aws_vpc.aalimsee_tf_main.id
+  ingress = [
+    {
+      from_port   = 80
+      to_port     = 80
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  ]
 
-  # Allow inbound traffic from the web ASG to the NLB
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow HTTP traffic to NLB"
-  }
-
-  # Allow all outbound traffic
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow all outbound traffic"
-  }
+  egress = [
+    {
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  ]
 
   tags = {
     Name = "aalimsee-tf-nlb-sg"
   }
 }
 
-
-
-# Create an Application Load Balancer
-resource "aws_lb" "aalimsee_tf_alb" {
+# Application Load Balancer
+resource "aws_lb" "alb" {
   name               = "aalimsee-tf-alb"
   internal           = false
   load_balancer_type = "application"
-  security_groups    = [aws_security_group.aalimsee_tf_web_sg.id]
-  subnets            = aws_subnet.aalimsee_tf_public[*].id
+  security_groups    = [aws_security_group.web.id]
+  subnets            = aws_subnet.public[*].id
 
   tags = {
     Name = "aalimsee-tf-alb"
   }
 }
 
-# Create Target Group for ALB
-resource "aws_lb_target_group" "aalimsee_tf_tg" {
+# Target Group for ALB
+resource "aws_lb_target_group" "alb_tg" {
   name     = "aalimsee-tf-target-group"
   port     = 80
   protocol = "HTTP"
-  vpc_id   = aws_vpc.aalimsee_tf_main.id
+  vpc_id   = aws_vpc.main.id
 
   tags = {
     Name = "aalimsee-tf-target-group"
   }
 }
 
-# Create Listener for ALB
-resource "aws_lb_listener" "aalimsee_tf_listener" {
-  load_balancer_arn = aws_lb.aalimsee_tf_alb.arn
+# Listener for ALB
+resource "aws_lb_listener" "alb_listener" {
+  load_balancer_arn = aws_lb.alb.arn
   port              = 80
   protocol          = "HTTP"
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.aalimsee_tf_tg.arn
+    target_group_arn = aws_lb_target_group.alb_tg.arn
   }
 }
 
-
-# Reference the existing Route 53 Hosted Zone
-data "aws_route53_zone" "aalimsee_tf_existing_zone" {
-  name = "sctp-sandbox.com" # Replace with your exact domain
-}
-
-# Route 53 Record for Web Load Balancer
-resource "aws_route53_record" "aalimsee_tf_alb" {
-  zone_id = data.aws_route53_zone.aalimsee_tf_existing_zone.id
-  name    = "aalimsee-web-tf.sctp-sandbox.com" # Subdomain for the web service
-  type    = "A"
-  alias {
-    name                   = aws_lb.aalimsee_tf_alb.dns_name
-    zone_id                = aws_lb.aalimsee_tf_alb.zone_id
-    evaluate_target_health = true
-  }
-}
-
-
-
-
-# Create a Network Load Balancer for Database
-resource "aws_lb" "aalimsee_tf_db_nlb" {
-  name               = "aalimsee-tf-db-nlb"
-  internal           = true # Internal NLB for private communication
-  load_balancer_type = "network"
-  subnets            = aws_subnet.aalimsee_tf_private[*].id
-
-  tags = {
-    Name = "aalimsee-tf-db-nlb"
-  }
-}
-
-# Create Target Group for Database NLB
-resource "aws_lb_target_group" "aalimsee_tf_db_tg" {
-  name        = "aalimsee-tf-db-target-group"
-  port        = 3306 # Database port (MySQL)
-  protocol    = "TCP" # NLB uses TCP for DB traffic
-  vpc_id      = aws_vpc.aalimsee_tf_main.id
-
-  health_check {
-    protocol            = "TCP" # Health check uses TCP
-    interval            = 30
-    timeout             = 10
-    healthy_threshold   = 3
-    unhealthy_threshold = 3
-  }
-
-  tags = {
-    Name = "aalimsee-tf-db-tg"
-  }
-}
-
-# Create Listener for Database Traffic
-resource "aws_lb_listener" "aalimsee_tf_db_listener" {
-  load_balancer_arn = aws_lb.aalimsee_tf_db_nlb.arn
-  port              = 3306
-  protocol          = "TCP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.aalimsee_tf_db_tg.arn
-  }
-}
-
-
-
-# Auto Scaling Launch Template
-resource "aws_launch_template" "aalimsee_tf_web_asg_lt" {
+# Launch Template for Web Instances
+resource "aws_launch_template" "web" {
   name          = "aalimsee-tf-web-launch-template"
-  image_id      = "ami-05576a079321f21f8"
+  image_id      = var.ami_id
   instance_type = "t2.micro"
- 
+  key_name      = var.key_name
+
   metadata_options {
-    http_tokens        = "optional"  # Allows both IMDSv1 and IMDSv2
-    http_endpoint      = "enabled"   # Enables access to the metadata service
-    http_put_response_hop_limit = 2   # Optional, sets the hop limit for metadata requests
+    http_tokens               = "optional"
+    http_endpoint             = "enabled"
+    http_put_response_hop_limit = 2
   }
- 
+
   user_data = base64encode(<<-EOF
 #!/bin/bash
 yum update -y
@@ -281,15 +250,12 @@ echo "<h1>Hello from Instance $(curl -s http://169.254.169.254/latest/meta-data/
 systemctl start httpd
 systemctl enable httpd
 EOF
-)
+  )
 
-  key_name      = "aalimsee-keypair" # Updated here
-  vpc_security_group_ids = [
-    aws_security_group.aalimsee_tf_web_sg.id
-  ]
+  vpc_security_group_ids = [aws_security_group.web.id]
 
   tags = {
-    Name = "aalimsee-tf-launch-template"
+    Name = "aalimsee-tf-web-launch-template"
   }
 
   lifecycle {
@@ -297,23 +263,19 @@ EOF
   }
 }
 
-# Auto Scaling Group
-resource "aws_autoscaling_group" "aalimsee_tf_web_asg" {
-  name    = "aalimsee-tf-web-asg" # Add this line to define the ASG name
-  
+# Auto Scaling Group for Web Instances
+resource "aws_autoscaling_group" "web" {
+  name                 = "aalimsee-tf-web-asg"
   launch_template {
-    id      = aws_launch_template.aalimsee_tf_web_asg_lt.id
+    id      = aws_launch_template.web.id
     version = "$Latest"
   }
-
-  min_size            = 2 
+  min_size            = 2
   max_size            = 5
   desired_capacity    = 2
-  vpc_zone_identifier = aws_subnet.aalimsee_tf_public[*].id
+  vpc_zone_identifier = aws_subnet.public[*].id
 
-  target_group_arns = [
-    aws_lb_target_group.aalimsee_tf_tg.arn
-  ]
+  target_group_arns = [aws_lb_target_group.alb_tg.arn]
 
   tag {
     key                 = "Name"
@@ -326,60 +288,74 @@ resource "aws_autoscaling_group" "aalimsee_tf_web_asg" {
   }
 }
 
+# Network Load Balancer for Database
+resource "aws_lb" "db_nlb" {
+  name               = "aalimsee-tf-db-nlb"
+  internal           = true
+  load_balancer_type = "network"
+  subnets            = aws_subnet.private[*].id
 
+  tags = {
+    Name = "aalimsee-tf-db-nlb"
+  }
+}
 
-# Launch Template for DB Instances
-resource "aws_launch_template" "aalimsee_tf_db_asg_lt" {
+# Target Group for Database NLB
+resource "aws_lb_target_group" "db_tg" {
+  name        = "aalimsee-tf-db-target-group"
+  port        = 3306
+  protocol    = "TCP"
+  vpc_id      = aws_vpc.main.id
+
+  health_check {
+    protocol            = "TCP"
+    interval            = 30
+    timeout             = 10
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+  }
+
+  tags = {
+    Name = "aalimsee-tf-db-tg"
+  }
+}
+
+# Listener for Database NLB
+resource "aws_lb_listener" "db_listener" {
+  load_balancer_arn = aws_lb.db_nlb.arn
+  port              = 3306
+  protocol          = "TCP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.db_tg.arn
+  }
+}
+
+# Launch Template for Database Instances
+resource "aws_launch_template" "db" {
   name          = "aalimsee-tf-db-launch-template"
-  image_id      = "ami-05576a079321f21f8" # Same as the web launch template
+  image_id      = var.ami_id
   instance_type = "t2.micro"
-  key_name      = "aalimsee-keypair"
-  vpc_security_group_ids = [
-    aws_security_group.aalimsee_tf_db_sg.id
-  ]
+  key_name      = var.key_name
+
+  vpc_security_group_ids = [aws_security_group.db.id]
 
   tag_specifications {
     resource_type = "instance"
     tags = {
-      Name = "aalimsee-tf-db-asg-instance"
+      Name = "aalimsee-tf-db-instance"
     }
   }
 }
 
-# Auto Scaling Group for DB Instances
-resource "aws_autoscaling_group" "aalimsee_tf_db_asg" {
-  name    = "aalimsee-tf-db-asg" # Add this line to define the ASG name
- 
+# Auto Scaling Group for Database Instances
+resource "aws_autoscaling_group" "db" {
+  name                 = "aalimsee-tf-db-asg"
   launch_template {
-    id      = aws_launch_template.aalimsee_tf_db_asg_lt.id
+    id      = aws_launch_template.db.id
     version = "$Latest"
   }
-
-  min_size             = 2   # Minimum number of DB instances
-  max_size             = 5   # Maximum number of DB instances
-  desired_capacity     = 2   # Desired number of DB instances
-  vpc_zone_identifier  = aws_subnet.aalimsee_tf_private[*].id # Private subnets for database
-  health_check_type    = "EC2"
-  health_check_grace_period = 300
-
-  target_group_arns = [
-    aws_lb_target_group.aalimsee_tf_db_tg.arn
-  ]
-
-  tag {
-      key                 = "Name"
-      value               = "aalimsee-tf-db-asg"
-      propagate_at_launch = true
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-
-
-
-# Data source to fetch availability zones
-data "aws_availability_zones" "available" {}
-
+  min_size            = 2
+  max_size            = 5
+  desired_capacity    = 2
