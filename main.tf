@@ -170,10 +170,6 @@ resource "aws_autoscaling_group" "web_asg" {
     value               = "aalimsee-tf-web-asg"
     propagate_at_launch = true
   }
-
-  tags = {
-    CreatedBy  = "aalimsee-tf"
-  }
 }
 
 resource "aws_launch_template" "db_asg_lt" {
@@ -206,10 +202,6 @@ resource "aws_autoscaling_group" "db_asg" {
     key                 = "Name"
     value               = "aalimsee-tf-db-asg"
     propagate_at_launch = true
-  }
-
-  tags = {
-    CreatedBy  = "aalimsee-tf"
   }
 }
 
