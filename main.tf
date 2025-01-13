@@ -155,6 +155,7 @@ EOF
 }
 
 resource "aws_autoscaling_group" "web_asg" {
+  name    = "aalimsee-tf-web-asg"
   launch_template {
     id      = aws_launch_template.web_asg_lt.id
     version = "$Latest"
@@ -188,6 +189,7 @@ resource "aws_launch_template" "db_asg_lt" {
 }
 
 resource "aws_autoscaling_group" "db_asg" {
+  name    = "aalimsee-tf-db-asg"
   launch_template {
     id      = aws_launch_template.db_asg_lt.id
     version = "$Latest"
