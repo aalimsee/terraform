@@ -10,8 +10,8 @@ resource "aws_vpc" "aalimsee_tf_main" {
   enable_dns_hostnames = true
 
   tags = {
-    Name       = "aalimsee-tf-vpc"
-    CreatedBy  = "aalimsee-tf"
+    Name      = "aalimsee-tf-vpc"
+    CreatedBy = "aalimsee-tf"
   }
 }
 
@@ -23,8 +23,8 @@ resource "aws_subnet" "aalimsee_tf_public" {
   availability_zone       = data.aws_availability_zones.available.names[count.index]
 
   tags = {
-    Name       = "aalimsee-tf-public-subnet-${count.index + 1}"
-    CreatedBy  = "aalimsee-tf"
+    Name      = "aalimsee-tf-public-subnet-${count.index + 1}"
+    CreatedBy = "aalimsee-tf"
   }
 }
 
@@ -35,8 +35,8 @@ resource "aws_subnet" "aalimsee_tf_private" {
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
   tags = {
-    Name       = "aalimsee-tf-private-subnet-${count.index + 1}"
-    CreatedBy  = "aalimsee-tf"
+    Name      = "aalimsee-tf-private-subnet-${count.index + 1}"
+    CreatedBy = "aalimsee-tf"
   }
 }
 
@@ -44,8 +44,8 @@ resource "aws_internet_gateway" "aalimsee_tf_igw" {
   vpc_id = aws_vpc.aalimsee_tf_main.id
 
   tags = {
-    Name       = "aalimsee-tf-igw"
-    CreatedBy  = "aalimsee-tf"
+    Name      = "aalimsee-tf-igw"
+    CreatedBy = "aalimsee-tf"
   }
 }
 
@@ -58,8 +58,8 @@ resource "aws_route_table" "aalimsee_tf_public" {
   }
 
   tags = {
-    Name       = "aalimsee-tf-public-route-table"
-    CreatedBy  = "aalimsee-tf"
+    Name      = "aalimsee-tf-public-route-table"
+    CreatedBy = "aalimsee-tf"
   }
 }
 
@@ -98,8 +98,8 @@ resource "aws_security_group" "web" {
   }
 
   tags = {
-    Name       = "aalimsee-tf-web-sg"
-    CreatedBy  = "aalimsee-tf"
+    Name      = "aalimsee-tf-web-sg"
+    CreatedBy = "aalimsee-tf"
   }
 }
 
@@ -124,8 +124,8 @@ resource "aws_security_group" "nlb" {
   }
 
   tags = {
-    Name       = "aalimsee-tf-nlb-sg"
-    CreatedBy  = "aalimsee-tf"
+    Name      = "aalimsee-tf-nlb-sg"
+    CreatedBy = "aalimsee-tf"
   }
 }
 
@@ -134,14 +134,14 @@ resource "aws_launch_template" "web_asg_lt" {
   image_id      = "ami-05576a079321f21f8"
   instance_type = "t2.micro"
   key_name      = "aalimsee-keypair"
-  
-metadata_options {
-    http_tokens        = "optional"  # Allows both IMDSv1 and IMDSv2
-    http_endpoint      = "enabled"   # Enables access to the metadata service
-    http_put_response_hop_limit = 2   # Optional, sets the hop limit for metadata requests
+
+  metadata_options {
+    http_tokens                 = "optional" # Allows both IMDSv1 and IMDSv2
+    http_endpoint               = "enabled"  # Enables access to the metadata service
+    http_put_response_hop_limit = 2          # Optional, sets the hop limit for metadata requests
   }
 
-user_data = base64encode(<<-EOF
+  user_data = base64encode(<<-EOF
 #!/bin/bash
 yum update -y
 yum install httpd -y
@@ -155,13 +155,13 @@ EOF
   vpc_security_group_ids = [aws_security_group.web.id]
 
   tags = {
-    Name       = "aalimsee-tf-web-instance"
-    CreatedBy  = "aalimsee-tf"
+    Name      = "aalimsee-tf-web-instance"
+    CreatedBy = "aalimsee-tf"
   }
 }
 
 resource "aws_autoscaling_group" "web_asg" {
-  name    = "aalimsee-tf-web-asg"
+  name = "aalimsee-tf-web-asg"
   launch_template {
     id      = aws_launch_template.web_asg_lt.id
     version = "$Latest"
@@ -188,14 +188,14 @@ resource "aws_launch_template" "db_asg_lt" {
   tag_specifications {
     resource_type = "instance"
     tags = {
-      Name       = "aalimsee-tf-db-instance"
-      CreatedBy  = "aalimsee-tf"
+      Name      = "aalimsee-tf-db-instance"
+      CreatedBy = "aalimsee-tf"
     }
   }
 }
 
 resource "aws_autoscaling_group" "db_asg" {
-  name    = "aalimsee-tf-db-asg"
+  name = "aalimsee-tf-db-asg"
   launch_template {
     id      = aws_launch_template.db_asg_lt.id
     version = "$Latest"
@@ -221,8 +221,8 @@ resource "aws_lb" "public_alb" {
   subnets            = aws_subnet.aalimsee_tf_public[*].id
 
   tags = {
-    Name       = "aalimsee-tf-alb"
-    CreatedBy  = "aalimsee-tf"
+    Name      = "aalimsee-tf-alb"
+    CreatedBy = "aalimsee-tf"
   }
 }
 
@@ -233,8 +233,8 @@ resource "aws_lb_target_group" "public_tg" {
   vpc_id   = aws_vpc.aalimsee_tf_main.id
 
   tags = {
-    Name       = "aalimsee-tf-alb-target-group"
-    CreatedBy  = "aalimsee-tf"
+    Name      = "aalimsee-tf-alb-target-group"
+    CreatedBy = "aalimsee-tf"
   }
 }
 
@@ -256,8 +256,8 @@ resource "aws_lb" "internal_nlb" {
   subnets            = aws_subnet.aalimsee_tf_private[*].id
 
   tags = {
-    Name       = "aalimsee-tf-nlb"
-    CreatedBy  = "aalimsee-tf"
+    Name      = "aalimsee-tf-nlb"
+    CreatedBy = "aalimsee-tf"
   }
 }
 
@@ -268,8 +268,8 @@ resource "aws_lb_target_group" "internal_tg" {
   vpc_id   = aws_vpc.aalimsee_tf_main.id
 
   tags = {
-    Name       = "aalimsee-tf-nlb-target-group"
-    CreatedBy  = "aalimsee-tf"
+    Name      = "aalimsee-tf-nlb-target-group"
+    CreatedBy = "aalimsee-tf"
   }
 }
 
