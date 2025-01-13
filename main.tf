@@ -4,69 +4,74 @@ provider "aws" {
 
 data "aws_availability_zones" "available" {}
 
-resource "aws_vpc" "main" {
+resource "aws_vpc" "aalimsee_tf_main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
   enable_dns_hostnames = true
 
   tags = {
-    Name = "main-vpc"
+    Name       = "aalimsee-tf-vpc"
+    CreatedBy  = "aalimsee-tf"
   }
 }
 
-resource "aws_subnet" "public" {
+resource "aws_subnet" "aalimsee_tf_public" {
   count                   = 3
-  vpc_id                  = aws_vpc.main.id
+  vpc_id                  = aws_vpc.aalimsee_tf_main.id
   cidr_block              = "10.0.${count.index + 1}.0/24"
-  availability_zone       = data.aws_availability_zones.available.names[count.index]
   map_public_ip_on_launch = true
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
 
   tags = {
-    Name = "public-subnet-${count.index + 1}"
+    Name       = "aalimsee-tf-public-subnet-${count.index + 1}"
+    CreatedBy  = "aalimsee-tf"
   }
 }
 
-resource "aws_subnet" "private" {
+resource "aws_subnet" "aalimsee_tf_private" {
   count             = 3
-  vpc_id            = aws_vpc.main.id
+  vpc_id            = aws_vpc.aalimsee_tf_main.id
   cidr_block        = "10.0.${count.index + 4}.0/24"
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
   tags = {
-    Name = "private-subnet-${count.index + 1}"
+    Name       = "aalimsee-tf-private-subnet-${count.index + 1}"
+    CreatedBy  = "aalimsee-tf"
   }
 }
 
-resource "aws_internet_gateway" "main" {
-  vpc_id = aws_vpc.main.id
+resource "aws_internet_gateway" "aalimsee_tf_igw" {
+  vpc_id = aws_vpc.aalimsee_tf_main.id
 
   tags = {
-    Name = "main-igw"
+    Name       = "aalimsee-tf-igw"
+    CreatedBy  = "aalimsee-tf"
   }
 }
 
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.main.id
+resource "aws_route_table" "aalimsee_tf_public" {
+  vpc_id = aws_vpc.aalimsee_tf_main.id
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main.id
+    gateway_id = aws_internet_gateway.aalimsee_tf_igw.id
   }
 
   tags = {
-    Name = "public-route-table"
+    Name       = "aalimsee-tf-public-route-table"
+    CreatedBy  = "aalimsee-tf"
   }
 }
 
-resource "aws_route_table_association" "public" {
+resource "aws_route_table_association" "aalimsee_tf_public" {
   count          = 3
-  subnet_id      = aws_subnet.public[count.index].id
-  route_table_id = aws_route_table.public.id
+  subnet_id      = aws_subnet.aalimsee_tf_public[count.index].id
+  route_table_id = aws_route_table.aalimsee_tf_public.id
 }
 
 resource "aws_security_group" "web" {
-  name   = "web-sg"
-  vpc_id = aws_vpc.main.id
+  name   = "aalimsee-tf-web-sg"
+  vpc_id = aws_vpc.aalimsee_tf_main.id
 
   ingress {
     from_port   = 80
@@ -93,13 +98,14 @@ resource "aws_security_group" "web" {
   }
 
   tags = {
-    Name = "web-sg"
+    Name       = "aalimsee-tf-web-sg"
+    CreatedBy  = "aalimsee-tf"
   }
 }
 
 resource "aws_security_group" "nlb" {
-  name   = "nlb-sg"
-  vpc_id = aws_vpc.main.id
+  name   = "aalimsee-tf-nlb-sg"
+  vpc_id = aws_vpc.aalimsee_tf_main.id
 
   ingress {
     from_port   = 80
@@ -118,221 +124,162 @@ resource "aws_security_group" "nlb" {
   }
 
   tags = {
-    Name = "nlb-sg"
+    Name       = "aalimsee-tf-nlb-sg"
+    CreatedBy  = "aalimsee-tf"
   }
 }
 
-resource "aws_lb" "web" {
-  name               = "web-alb"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.web.id]
-  subnets            = aws_subnet.public[*].id
-
-  tags = {
-    Name = "web-alb"
-  }
-}
-
-resource "aws_lb_target_group" "web" {
-  name     = "web-target-group"
-  port     = 80
-  protocol = "HTTP"
-  vpc_id   = aws_vpc.main.id
-
-  tags = {
-    Name = "web-target-group"
-  }
-}
-
-resource "aws_lb_listener" "web" {
-  load_balancer_arn = aws_lb.web.arn
-  port              = 80
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.web.arn
-  }
-}
-
-resource "aws_launch_template" "web" {
-  name          = "web-launch-template"
+resource "aws_launch_template" "web_asg_lt" {
+  name          = "aalimsee-tf-web-launch-template"
   image_id      = "ami-05576a079321f21f8"
   instance_type = "t2.micro"
+  key_name      = "aalimsee-keypair"
 
   user_data = base64encode(<<-EOF
 #!/bin/bash
 yum update -y
 yum install httpd -y
-echo "<h1>Hello from Application 1</h1>" | sudo tee /var/www/html/index.html
+echo "<h1>Hello from Application 1, Aaron Lim</h1>" | sudo tee /var/www/html/index.html
+echo "<h1>Hello from Instance $(curl -s http://169.254.169.254/latest/meta-data/instance-id)</h1>" | sudo tee -a /var/www/html/index.html
 systemctl start httpd
 systemctl enable httpd
 EOF
   )
 
-  key_name = "aalimsee-keypair"
-
-  vpc_security_group_ids = [
-    aws_security_group.web.id
-  ]
+  vpc_security_group_ids = [aws_security_group.web.id]
 
   tags = {
-    Name = "web-launch-template"
+    Name       = "aalimsee-tf-web-instance"
+    CreatedBy  = "aalimsee-tf"
   }
 }
 
-resource "aws_autoscaling_group" "web" {
-  name                = "web-asg"
-  min_size            = 2
-  max_size            = 5
-  desired_capacity    = 2
-  vpc_zone_identifier = aws_subnet.public[*].id
-
+resource "aws_autoscaling_group" "web_asg" {
   launch_template {
-    id      = aws_launch_template.web.id
+    id      = aws_launch_template.web_asg_lt.id
     version = "$Latest"
   }
 
-  target_group_arns = [
-    aws_lb_target_group.web.arn
-  ]
+  min_size            = 2
+  max_size            = 5
+  desired_capacity    = 2
+  vpc_zone_identifier = aws_subnet.aalimsee_tf_public[*].id
 
   tag {
     key                 = "Name"
-    value               = "web-asg-instance"
+    value               = "aalimsee-tf-web-asg"
     propagate_at_launch = true
   }
+
+  tags = {
+    CreatedBy  = "aalimsee-tf"
+  }
 }
 
-resource "aws_security_group" "db" {
-  name   = "db-sg"
-  vpc_id = aws_vpc.main.id
+resource "aws_launch_template" "db_asg_lt" {
+  name          = "aalimsee-tf-db-launch-template"
+  image_id      = "ami-05576a079321f21f8"
+  instance_type = "t2.micro"
+  key_name      = "aalimsee-keypair"
 
-  ingress {
-    from_port       = 3306
-    to_port         = 3306
-    protocol        = "tcp"
-    security_groups = [aws_security_group.nlb.id]
-    description     = "Allow NLB to access DB"
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name       = "aalimsee-tf-db-instance"
+      CreatedBy  = "aalimsee-tf"
+    }
+  }
+}
+
+resource "aws_autoscaling_group" "db_asg" {
+  launch_template {
+    id      = aws_launch_template.db_asg_lt.id
+    version = "$Latest"
   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow all outbound traffic"
+  min_size            = 2
+  max_size            = 5
+  desired_capacity    = 2
+  vpc_zone_identifier = aws_subnet.aalimsee_tf_private[*].id
+
+  tag {
+    key                 = "Name"
+    value               = "aalimsee-tf-db-asg"
+    propagate_at_launch = true
   }
 
   tags = {
-    Name = "db-sg"
+    CreatedBy  = "aalimsee-tf"
   }
 }
 
-resource "aws_lb" "db" {
-  name               = "db-nlb"
+resource "aws_lb" "public_alb" {
+  name               = "aalimsee-tf-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.web.id]
+  subnets            = aws_subnet.aalimsee_tf_public[*].id
+
+  tags = {
+    Name       = "aalimsee-tf-alb"
+    CreatedBy  = "aalimsee-tf"
+  }
+}
+
+resource "aws_lb_target_group" "public_tg" {
+  name     = "aalimsee-tf-target-group"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.aalimsee_tf_main.id
+
+  tags = {
+    Name       = "aalimsee-tf-target-group"
+    CreatedBy  = "aalimsee-tf"
+  }
+}
+
+resource "aws_lb_listener" "public_listener" {
+  load_balancer_arn = aws_lb.public_alb.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.public_tg.arn
+  }
+}
+
+resource "aws_lb" "internal_nlb" {
+  name               = "aalimsee-tf-nlb"
   internal           = true
   load_balancer_type = "network"
-  subnets            = aws_subnet.private[*].id
+  subnets            = aws_subnet.aalimsee_tf_private[*].id
 
   tags = {
-    Name = "db-nlb"
+    Name       = "aalimsee-tf-nlb"
+    CreatedBy  = "aalimsee-tf"
   }
 }
 
-resource "aws_lb_target_group" "db" {
-  name     = "db-target-group"
+resource "aws_lb_target_group" "internal_tg" {
+  name     = "aalimsee-tf-nlb-target-group"
   port     = 3306
   protocol = "TCP"
-  vpc_id   = aws_vpc.main.id
-
-  health_check {
-    protocol            = "TCP"
-    interval            = 30
-    timeout             = 10
-    healthy_threshold   = 3
-    unhealthy_threshold = 3
-  }
+  vpc_id   = aws_vpc.aalimsee_tf_main.id
 
   tags = {
-    Name = "db-target-group"
+    Name       = "aalimsee-tf-nlb-target-group"
+    CreatedBy  = "aalimsee-tf"
   }
 }
 
-resource "aws_lb_listener" "db" {
-  load_balancer_arn = aws_lb.db.arn
+resource "aws_lb_listener" "internal_listener" {
+  load_balancer_arn = aws_lb.internal_nlb.arn
   port              = 3306
   protocol          = "TCP"
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.db.arn
-  }
-}
-
-resource "aws_launch_template" "db" {
-  name          = "db-launch-template"
-  image_id      = "ami-05576a079321f21f8"
-  instance_type = "t2.micro"
-  key_name      = "aalimsee-keypair"
-
-  vpc_security_group_ids = [
-    aws_security_group.db.id
-  ]
-
-  tags = {
-    Name = "db-launch-template"
-  }
-}
-
-resource "aws_autoscaling_group" "db" {
-  name                = "db-asg"
-  min_size            = 2
-  max_size            = 5
-  desired_capacity    = 2
-  vpc_zone_identifier = aws_subnet.private[*].id
-
-  launch_template {
-    id      = aws_launch_template.db.id
-    version = "$Latest"
-  }
-
-  target_group_arns = [
-    aws_lb_target_group.db.arn
-  ]
-
-  tag {
-    key                 = "Name"
-    value               = "db-asg-instance"
-    propagate_at_launch = true
-  }
-}
-
-data "aws_route53_zone" "existing" {
-  name = "sctp-sandbox.com"
-}
-
-resource "aws_route53_record" "web" {
-  zone_id = data.aws_route53_zone.existing.id
-  name    = "web.sctp-sandbox.com"
-  type    = "A"
-
-  alias {
-    name                   = aws_lb.web.dns_name
-    zone_id                = aws_lb.web.zone_id
-    evaluate_target_health = true
-  }
-}
-
-resource "aws_route53_record" "db" {
-  zone_id = data.aws_route53_zone.existing.id
-  name    = "db.sctp-sandbox.com"
-  type    = "A"
-
-  alias {
-    name                   = aws_lb.db.dns_name
-    zone_id                = aws_lb.db.zone_id
-    evaluate_target_health = true
+    target_group_arn = aws_lb_target_group.internal_tg.arn
   }
 }
