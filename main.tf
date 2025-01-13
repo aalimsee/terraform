@@ -209,40 +209,8 @@ resource "aws_route53_record" "aalimsee_tf_alb" {
     zone_id                = aws_lb.aalimsee_tf_alb.zone_id
     evaluate_target_health = true
   }
-
-#  tag {
-#    key                 = "Name"
-#    value               = "aalimsee-tf-alb-record"
-#    propagate_at_launch = true
-#  }
-#
-#  tags = {
-#    Name = "aalimsee-tf-alb-record"
-#  }
-
 }
 
-
-
-# ALB Listener Rule
-resource "aws_lb_listener_rule" "aalimsee_tf_http_host_rule" {
-  listener_arn = aws_lb_listener.aalimsee_tf_http_listener.arn
-  priority     = 1
-
-  conditions {
-    field  = "host-header"
-    values = ["aalimsee-web-tf.sctp-sandbox.com"]
-  }
-
-  actions {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.aalimsee_tf_web_tg.arn
-  }
-
-  tags = {
-    Name = "aalimsee-web-tf-rule"
-  }
-}
 
 
 
