@@ -242,8 +242,6 @@ resource "aws_lb_listener" "aalimsee_tf_db_listener" {
 
 
 
-
-
 # Auto Scaling Launch Template
 resource "aws_launch_template" "aalimsee_tf_web_asg_lt" {
   name          = "aalimsee-tf-web-launch-template"
@@ -281,8 +279,6 @@ EOF
   }
 }
 
-
-
 # Auto Scaling Group
 resource "aws_autoscaling_group" "aalimsee_tf_web_asg" {
   name    = "aalimsee-tf-web-asg" # Add this line to define the ASG name
@@ -311,6 +307,7 @@ resource "aws_autoscaling_group" "aalimsee_tf_web_asg" {
     create_before_destroy = true
   }
 }
+
 
 
 # Launch Template for DB Instances

@@ -1,0 +1,12 @@
+total 216
+drwxr-xr-x  11 aaronlim  staff   352B Jan 13 11:44 .
+drwxr-x---+ 57 aaronlim  staff   1.8K Jan 13 11:19 ..
+drwxr-xr-x  12 aaronlim  staff   384B Jan 13 11:19 .git
+-rw-r--r--   1 aaronlim  staff   977B Jan 13 11:20 .gitignore
+drwxr-xr-x   3 aaronlim  staff    96B Jan 13 11:20 .terraform
+-rw-r--r--   1 aaronlim  staff   1.3K Jan 13 11:20 .terraform.lock.hcl
+-rw-r--r--   1 aaronlim  staff    28B Jan 13 11:19 README.md
+-rw-r--r--   1 aaronlim  staff   8.6K Jan 13 11:44 main.tf
+-rw-r--r--   1 aaronlim  staff     0B Jan 13 11:44 size.README
+-rw-r--r--   1 aaronlim  staff    55K Jan 13 11:39 terraform.tfstate
+-rw-r--r--   1 aaronlim  staff    25K Jan 13 11:32 terraform.tfstate.backup
