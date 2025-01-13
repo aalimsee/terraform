@@ -194,7 +194,26 @@ resource "aws_lb_listener" "aalimsee_tf_listener" {
 }
 
 
+# Reference the existing Route 53 Hosted Zone
+data "aws_route53_zone" "aalimsee_tf_existing_zone" {
+  name = "sctp-sandbox.com" # Replace with your exact domain
+}
 
+# Route 53 Record for Web Load Balancer
+resource "aws_route53_record" "aalimsee_tf_web_alb" {
+  zone_id = data.aws_route53_zone.aalimsee_tf_existing_zone.id
+  name    = "aalimsee-web-tf.sctp-sandbox.com" # Subdomain for the web service
+  type    = "A"
+  alias {
+    name                   = aws_lb.aalimsee_tf_web_alb.dns_name
+    zone_id                = aws_lb.aalimsee_tf_web_alb.zone_id
+    evaluate_target_health = true
+  }
+
+  tags = {
+    Name = "aalimsee-tf-web-alb-record"
+  }
+}
 
 # Create a Network Load Balancer for Database
 resource "aws_lb" "aalimsee_tf_db_nlb" {
