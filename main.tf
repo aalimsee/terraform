@@ -2,6 +2,11 @@ provider "aws" {
   region = "us-east-1"
 }
 
+provider "aws" {
+  alias  = "seconday-region"
+  region = "ap-southeast-1"
+}
+
 data "aws_availability_zones" "available" {}
 
 resource "aws_vpc" "aalimsee_tf_main" {
@@ -252,34 +257,6 @@ resource "aws_lb_target_group" "public_tg" {
 }
 
 
-#==========================================================
-# Fetching Instance IDs from an Auto Scaling Group
-#==========================================================
-data "aws_autoscaling_group" "web_asg" {
-  name = aws_autoscaling_group.web_asg.name
-}
-
-data "aws_instances" "asg_instances" {
-  filter {
-    name   = "tag:aws:autoscaling:groupName"
-    values = [data.aws_autoscaling_group.web_asg.name]
-  }
-}
-
-output "asg_instance_ids" {
-  value = data.aws_instances.asg_instances.ids
-}
-
-#==========================================================
-# Registering Instances to an ALB with ASG
-#==========================================================
-resource "aws_lb_target_group_attachment" "targets" {
-  count            = length(data.aws_instances.asg_instances.ids)
-  target_group_arn = aws_lb_target_group.public_tg.arn
-  target_id        = data.aws_instances.asg_instances.ids[count.index]
-  port             = 80
-}
-
 resource "aws_lb_listener" "public_listener" {
   load_balancer_arn = aws_lb.public_alb.arn
   port              = 80
@@ -342,5 +319,34 @@ resource "aws_route53_record" "public_alb" {
     zone_id                = aws_lb.public_alb.zone_id
     evaluate_target_health = true
   }
+}
+#==========================================================
+
+#==========================================================
+# Fetching Instance IDs from an Auto Scaling Group
+#==========================================================
+data "aws_autoscaling_group" "web_asg" {
+  name = aws_autoscaling_group.web_asg.name
+}
+
+data "aws_instances" "asg_instances" {
+  filter {
+    name   = "tag:aws:autoscaling:groupName"
+    values = [data.aws_autoscaling_group.web_asg.name]
+  }
+}
+
+output "asg_instance_ids" {
+  value = data.aws_instances.asg_instances.ids
+}
+
+#==========================================================
+# Registering Instances to an ALB with ASG
+#==========================================================
+resource "aws_lb_target_group_attachment" "targets" {
+  count            = length(data.aws_instances.asg_instances.ids)
+  target_group_arn = aws_lb_target_group.public_tg.arn
+  target_id        = data.aws_instances.asg_instances.ids[count.index]
+  port             = 80
 }
 #==========================================================
