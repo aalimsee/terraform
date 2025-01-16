@@ -424,6 +424,12 @@ resource "aws_lb_target_group_attachment" "targets" {
   target_group_arn = aws_lb_target_group.public_tg.arn
   target_id        = data.aws_instances.asg_instances.ids[count.index]
   port             = 80
+
+    timeouts {
+    create = "1h"  
+    update = "30m"
+    delete = "10m"
+    }
 }
 #==========================================================
 
@@ -453,5 +459,11 @@ resource "aws_lb_target_group_attachment" "db_targets" {
   target_group_arn = aws_lb_target_group.internal_tg.arn
   target_id        = data.aws_instances.db_asg_instances.ids[count.index]
   port             = 3128 # <<< match initial port during power up
+
+    timeouts {
+    create = "1h"  
+    update = "30m"
+    delete = "10m"
+    }
 }
 #==========================================================
