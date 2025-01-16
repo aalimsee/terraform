@@ -1,11 +1,3 @@
-provider "aws" {
-  region = "us-east-1"
-}
-
-provider "aws" {
-  alias  = "seconday-region"
-  region = "ap-southeast-1"
-}
 
 data "aws_availability_zones" "available" {}
 
@@ -54,7 +46,7 @@ resource "aws_internet_gateway" "aalimsee_tf_igw" {
   }
 }
 
-resource "aws_route_table" "aalimsee_tf_public" {
+resource "aws_route_table" "aalimsee_tf_public" { # <<< why aalimsee_tf_public is used
   vpc_id = aws_vpc.aalimsee_tf_main.id
 
   route {
@@ -68,12 +60,15 @@ resource "aws_route_table" "aalimsee_tf_public" {
   }
 }
 
-resource "aws_route_table_association" "aalimsee_tf_public" {
+resource "aws_route_table_association" "aalimsee_tf_public" { # <<< why aalimsee_tf_public is used
   count          = 3
   subnet_id      = aws_subnet.aalimsee_tf_public[count.index].id
   route_table_id = aws_route_table.aalimsee_tf_public.id
 }
 
+#====================================
+# Security Group Web
+#====================================
 resource "aws_security_group" "web" {
   name   = "${var.prefix}-web-sg"
   vpc_id = aws_vpc.aalimsee_tf_main.id
@@ -108,9 +103,37 @@ resource "aws_security_group" "web" {
   }
 }
 
+#====================================
+# Security Group NLB
+#====================================
 resource "aws_security_group" "nlb" {
   name   = "${var.prefix}-nlb-sg"
   vpc_id = aws_vpc.aalimsee_tf_main.id
+
+  # Allow inbound traffic for proxy services (e.g., HTTP/HTTPS)
+  ingress {
+    from_port   = 3128
+    to_port     = 3128
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]  # Allow access from within the VPC
+    description = "Allow proxy services to NLB"
+  }
+  # Allow inbound ICMP <<<
+  ingress {
+    from_port   = -1
+    to_port     = -1
+    protocol    = "icmp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow icmp traffic"
+  }
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow SSH traffic"
+  }
 
   ingress {
     from_port   = 80
@@ -134,13 +157,17 @@ resource "aws_security_group" "nlb" {
   }
 }
 
+
+#====================================
+# Launch Template Web for ASG
+#====================================
 resource "aws_launch_template" "web_asg_lt" {
-  name          = "${var.prefix}-web-launch-template"
-  image_id      = "ami-05576a079321f21f8"
-  instance_type = "t2.micro"
-  key_name      = "${var.key-pair}"
+  name                   = "${var.prefix}-web-launch-template"
+  image_id               = "ami-05576a079321f21f8"
+  instance_type          = "t2.micro"
+  key_name               = "${var.key-pair}"
   update_default_version = true 
-  description   = "${var.createdByTerraform}"
+  description            = "${var.createdByTerraform}"
 
   metadata_options {
     http_tokens                 = "optional" # Allows both IMDSv1 and IMDSv2
@@ -167,6 +194,9 @@ resource "aws_launch_template" "web_asg_lt" {
   }
 }
 
+#====================================
+# Auto Scaling Group Web
+#====================================
 resource "aws_autoscaling_group" "web_asg" {
   name = "${var.prefix}-web-asg"
   launch_template {
@@ -186,6 +216,9 @@ resource "aws_autoscaling_group" "web_asg" {
   }
 }
 
+#====================================
+# Launch Template DB
+#====================================
 resource "aws_launch_template" "db_asg_lt" {
   name          = "${var.prefix}-db-launch-template"
   image_id      = "ami-05576a079321f21f8"
@@ -193,6 +226,24 @@ resource "aws_launch_template" "db_asg_lt" {
   key_name      = "aalimsee-keypair"
   update_default_version = true
   description   = "${var.createdByTerraform}"
+
+    # <<< add this block
+    user_data = base64encode(<<-EOF
+      #!/bin/bash
+      # Update system
+      sudo yum update -y
+      # Install Squid proxy
+      sudo yum install squid -y
+      # Configure Squid to allow traffic from the VPC CIDR
+      sudo echo "acl allowed_network src 10.0.0.0/16" >> /etc/squid/squid.conf
+      sudo echo "http_access allow allowed_network" >> /etc/squid/squid.conf
+      # Restart Squid to apply changes
+      sudo systemctl enable squid
+      sudo systemctl restart squid
+      EOF
+    )
+
+  vpc_security_group_ids = [aws_security_group.nlb.id]
 
   tag_specifications {
     resource_type = "instance"
@@ -203,6 +254,9 @@ resource "aws_launch_template" "db_asg_lt" {
   }
 }
 
+#====================================
+# Auto Scaling Group DB
+#====================================
 resource "aws_autoscaling_group" "db_asg" {
   name = "${var.prefix}-db-asg"
   launch_template {
@@ -222,6 +276,9 @@ resource "aws_autoscaling_group" "db_asg" {
   }
 }
 
+#====================================
+# Create Application Load Balancer
+#====================================
 resource "aws_lb" "public_alb" {
   name               = "${var.prefix}-alb"
   internal           = false
@@ -235,6 +292,9 @@ resource "aws_lb" "public_alb" {
   }
 }
 
+#====================================
+# Target Group for Application Load Balancer
+#====================================
 resource "aws_lb_target_group" "public_tg" {
   name     = "${var.prefix}-alb-target-group"
   port     = 80
@@ -251,12 +311,14 @@ resource "aws_lb_target_group" "public_tg" {
   }
 
   tags = {
-    Name      = "${var.prefix}-alb-target-group"
+    Name      = "${var.prefix}-alb-tg"
     CreatedBy = "${var.createdByTerraform}"
   }
 }
 
-
+#====================================
+# Application Load Balancer - Listener
+#====================================
 resource "aws_lb_listener" "public_listener" {
   load_balancer_arn = aws_lb.public_alb.arn
   port              = 80
@@ -268,10 +330,14 @@ resource "aws_lb_listener" "public_listener" {
   }
 }
 
+#====================================
+# Create Network Load Balancer
+#====================================
 resource "aws_lb" "internal_nlb" {
   name               = "${var.prefix}-nlb"
   internal           = true
   load_balancer_type = "network"
+  security_groups    = [aws_security_group.nlb.id] # <<< added
   subnets            = aws_subnet.aalimsee_tf_private[*].id
 
   tags = {
@@ -280,22 +346,38 @@ resource "aws_lb" "internal_nlb" {
   }
 }
 
+#====================================
+# Target Group for Network Load Balancer
+#====================================
 resource "aws_lb_target_group" "internal_tg" {
   name     = "${var.prefix}-nlb-target-group"
-  port     = 3306
-  protocol = "TCP"
+  port     = 3128 # <<< changed to 3128
+  protocol = "TCP" # <<< updated as TCP
   vpc_id   = aws_vpc.aalimsee_tf_main.id
 
+  # <<< added this block 
+  #health_check {
+  #  interval            = 30
+  #  timeout             = 5
+  #  protocol            = "TCP" # <<< Need to be TCP by default. If not uncomment block
+  #  path                = "/"
+  #  healthy_threshold   = 3
+  #  unhealthy_threshold = 2
+  #}
+
   tags = {
-    Name      = "${var.prefix}-nlb-target-group"
+    Name      = "${var.prefix}-nlb-tg"
     CreatedBy = "${var.createdByTerraform}"
   }
 }
 
+#====================================
+# Network Load Balancer - Listener
+#====================================
 resource "aws_lb_listener" "internal_listener" {
   load_balancer_arn = aws_lb.internal_nlb.arn
-  port              = 3306
-  protocol          = "TCP"
+  port              = 3128 # <<< changed to 3128
+  protocol          = "TCP" # <<< Listener protocol 'HTTP' must be one of 'UDP, TCP, TCP_UDP, TLS'
 
   default_action {
     type             = "forward"
@@ -304,13 +386,14 @@ resource "aws_lb_listener" "internal_listener" {
 }
 
 #==========================================================
-# Reference the existing Route 53 Hosted Zone
+# Reference to existing Route 53 Hosted Zone
+#==========================================================
 data "aws_route53_zone" "existing_zone" {
   name = "sctp-sandbox.com" # Replace with your exact domain
 }
 
 # Route 53 Record for Web Load Balancer
-resource "aws_route53_record" "public_alb" {
+resource "aws_route53_record" "public_alb" { # <<< why "public_alb"
   zone_id = data.aws_route53_zone.existing_zone.id
   name    = "aalimsee-tf-web" # Subdomain for the web service
   type    = "A"
@@ -320,7 +403,6 @@ resource "aws_route53_record" "public_alb" {
     evaluate_target_health = true
   }
 }
-#==========================================================
 
 #==========================================================
 # Fetching Instance IDs from an Auto Scaling Group
@@ -348,5 +430,34 @@ resource "aws_lb_target_group_attachment" "targets" {
   target_group_arn = aws_lb_target_group.public_tg.arn
   target_id        = data.aws_instances.asg_instances.ids[count.index]
   port             = 80
+}
+#==========================================================
+
+#==========================================================
+# Fetching Instance IDs from an Auto Scaling Group (Database)
+#==========================================================
+data "aws_autoscaling_group" "db_asg" {
+  name = aws_autoscaling_group.db_asg.name
+}
+
+data "aws_instances" "db_asg_instances" {
+  filter {
+    name   = "tag:aws:autoscaling:groupName"
+    values = [data.aws_autoscaling_group.db_asg.name]
+  }
+}
+
+output "asg_db_instance_ids" {
+  value = data.aws_instances.db_asg_instances.ids
+}
+
+#==========================================================
+# Registering Instances to an NLB with ASG (DB)
+#==========================================================
+resource "aws_lb_target_group_attachment" "db_targets" {
+  count            = length(data.aws_instances.db_asg_instances.ids)
+  target_group_arn = aws_lb_target_group.internal_tg.arn
+  target_id        = data.aws_instances.db_asg_instances.ids[count.index]
+  port             = 3128 # <<< match initial port during power up
 }
 #==========================================================
