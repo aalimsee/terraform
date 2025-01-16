@@ -80,6 +80,14 @@ resource "aws_security_group" "web" {
     cidr_blocks = ["0.0.0.0/0"]
     description = "Allow HTTP traffic"
   }
+    # <<< update ALB sg to include HTTPS
+    ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow HTTPS traffic"
+  }
 
   ingress {
     from_port   = 22
@@ -321,14 +329,19 @@ resource "aws_lb_target_group" "public_tg" {
 #====================================
 resource "aws_lb_listener" "public_listener" {
   load_balancer_arn = aws_lb.public_alb.arn
-  port              = 80
-  protocol          = "HTTP"
+  #port              = 80 # <<< update to 443 with HTTPS cert
+  #protocol          = "HTTP" # <<< update to 443 with HTTPS cert
+  port = var.use_https ? 443 : 80
+  protocol = var.use_https ? "HTTPS" : "HTTP"
+  certificate_arn = var.use_https ? aws_acm_certificate.https_cert.arn : null
 
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.public_tg.arn
   }
 }
+
+
 
 #====================================
 # Create Network Load Balancer
@@ -382,25 +395,6 @@ resource "aws_lb_listener" "internal_listener" {
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.internal_tg.arn
-  }
-}
-
-#==========================================================
-# Reference to existing Route 53 Hosted Zone
-#==========================================================
-data "aws_route53_zone" "existing_zone" {
-  name = "sctp-sandbox.com" # Replace with your exact domain
-}
-
-# Route 53 Record for Web Load Balancer
-resource "aws_route53_record" "public_alb" { # <<< why "public_alb"
-  zone_id = data.aws_route53_zone.existing_zone.id
-  name    = "aalimsee-tf-web" # Subdomain for the web service
-  type    = "A"
-  alias {
-    name                   = aws_lb.public_alb.dns_name
-    zone_id                = aws_lb.public_alb.zone_id
-    evaluate_target_health = true
   }
 }
 
