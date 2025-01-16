@@ -5,7 +5,9 @@ data "aws_route53_zone" "existing_zone" {
   name = "sctp-sandbox.com" # Replace with your exact domain
 }
 
+#==========================================================
 # Route 53 Record for Web Load Balancer
+#==========================================================
 resource "aws_route53_record" "public_alb" { # <<< why "public_alb"
   zone_id = data.aws_route53_zone.existing_zone.id
   name    = "aalimsee-tf-web" # Subdomain for the web service
@@ -17,19 +19,13 @@ resource "aws_route53_record" "public_alb" { # <<< why "public_alb"
   }
 }
 
-
-
-
+#==========================================================
 # Request a new ACM Certificate for your domain
+#==========================================================
 resource "aws_acm_certificate" "https_cert" {
   domain_name       = "aalimsee-tf-web.sctp-sandbox.com" # Replace with your domain
   # <<< change to sctp-sandbox.com
   validation_method = "DNS"
-
-  #subject_alternative_names = [
-    # <<< "www.example.com", # Add subdomains as needed
-  #  "aalimsee-tf-webX.sctp-sandbox.com"
-  #]
 
   tags = {
     Name = "${var.prefix}-HTTPS-Certificate"
@@ -41,8 +37,9 @@ resource "aws_acm_certificate" "https_cert" {
   }
 }
 
-
+#==========================================================
 # Create DNS validation records in the existing Route 53 Hosted Zone
+#==========================================================
 resource "aws_route53_record" "cert_validation" {
   for_each = {
     for dvo in aws_acm_certificate.https_cert.domain_validation_options :
@@ -60,7 +57,9 @@ resource "aws_route53_record" "cert_validation" {
   ttl     = 300
 }
 
+#==========================================================
 # Validate the ACM Certificate
+#==========================================================
 resource "aws_acm_certificate_validation" "https_cert_validation" {
   certificate_arn         = aws_acm_certificate.https_cert.arn
 
