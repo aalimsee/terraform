@@ -182,7 +182,6 @@ resource "aws_lb_target_group_attachment" "db_targets" {
   target_id        = data.aws_instances.db_asg_instances.ids[count.index]
   port             = 3128 # <<< match initial port during power up
 }
-
 resource "aws_lb_target_group_attachment" "db_targets_80" {
   count            = length(data.aws_instances.db_asg_instances.ids)
   target_group_arn = aws_lb_target_group.internal_tg.arn
