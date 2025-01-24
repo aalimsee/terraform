@@ -111,7 +111,16 @@ resource "aws_lb_listener" "internal_listener" {
     target_group_arn = aws_lb_target_group.internal_tg.arn
   }
 }
+resource "aws_lb_listener" "internal_listener_80" {
+  load_balancer_arn = aws_lb.internal_nlb.arn
+  port              = 80  # <<< changed to 3128
+  protocol          = "TCP" # <<< Listener protocol 'HTTP' must be one of 'UDP, TCP, TCP_UDP, TLS'
 
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.internal_tg.arn
+  }
+}
 
 #==========================================================
 # Fetching Instance IDs from an Auto Scaling Group
@@ -127,7 +136,7 @@ data "aws_instances" "asg_instances" {
   }
 }
 
-output "asg_instance_ids" {
+output "asg_web_instance_ids" {
   value = data.aws_instances.asg_instances.ids
 
   depends_on = [aws_launch_template.web_asg_lt] # <<< included for testing output display
@@ -172,4 +181,11 @@ resource "aws_lb_target_group_attachment" "db_targets" {
   target_group_arn = aws_lb_target_group.internal_tg.arn
   target_id        = data.aws_instances.db_asg_instances.ids[count.index]
   port             = 3128 # <<< match initial port during power up
+}
+
+resource "aws_lb_target_group_attachment" "db_targets_80" {
+  count            = length(data.aws_instances.db_asg_instances.ids)
+  target_group_arn = aws_lb_target_group.internal_tg.arn
+  target_id        = data.aws_instances.db_asg_instances.ids[count.index]
+  port             = 80 # <<< match initial port during power up
 }

@@ -6,7 +6,7 @@ resource "aws_launch_template" "web_asg_lt" {
   name                   = "${var.prefix}-web-launch-template"
   image_id               = var.image_id
   instance_type          = var.instance_type
-  key_name               = var.key-pair
+  key_name               = var.key_pair
   update_default_version = true
   description            = var.createdByTerraform
 
@@ -70,7 +70,7 @@ resource "aws_launch_template" "db_asg_lt" {
   name                   = "${var.prefix}-db-launch-template"
   image_id               = var.image_id
   instance_type          = var.instance_type
-  key_name               = var.key-pair
+  key_name               = var.key_pair
   update_default_version = true
   description            = var.createdByTerraform
 
