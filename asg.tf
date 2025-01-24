@@ -1,16 +1,14 @@
 
-data "aws_availability_zones" "available" {}
-
 #====================================
 # Launch Template Web for ASG
 #====================================
 resource "aws_launch_template" "web_asg_lt" {
   name                   = "${var.prefix}-web-launch-template"
-  image_id               = "ami-05576a079321f21f8"
-  instance_type          = "t2.micro"
-  key_name               = "${var.key-pair}"
-  update_default_version = true 
-  description            = "${var.createdByTerraform}"
+  image_id               = var.image_id
+  instance_type          = var.instance_type
+  key_name               = var.key-pair
+  update_default_version = true
+  description            = var.createdByTerraform
 
   metadata_options {
     http_tokens                 = "optional" # Allows both IMDSv1 and IMDSv2
@@ -22,8 +20,8 @@ resource "aws_launch_template" "web_asg_lt" {
     #!/bin/bash
     yum update -y
     yum install httpd -y
-    echo "<h1>Hello from Application ASG 1, Aaron Lim</h1>" | sudo tee /var/www/html/index.html
-    echo "<h1>Hello from Instance $(curl -s http://169.254.169.254/latest/meta-data/instance-id)</h1>" | sudo tee -a /var/www/html/index.html
+    echo "<h1>Hello from Application EC2 (ASG), Aaron Lim</h1>" | sudo tee /var/www/html/index.html
+    echo "<h1>Instance $(curl -s http://169.254.169.254/latest/meta-data/instance-id)</h1>" | sudo tee -a /var/www/html/index.html
     systemctl start httpd
     systemctl enable httpd
     EOF
@@ -33,7 +31,7 @@ resource "aws_launch_template" "web_asg_lt" {
 
   tags = {
     Name      = "${var.prefix}-web-instance"
-    CreatedBy = "${var.createdByTerraform}"
+    CreatedBy = var.createdByTerraform
   }
 }
 
@@ -57,18 +55,24 @@ resource "aws_autoscaling_group" "web_asg" {
     value               = "${var.prefix}-web-asg"
     propagate_at_launch = true
   }
+
+  timeouts { # <<< should i include here
+    #create = "1h"  
+    update = "60m"
+    delete = "10m"
+  }
 }
 
 #====================================
 # Launch Template DB
 #====================================
 resource "aws_launch_template" "db_asg_lt" {
-  name          = "${var.prefix}-db-launch-template"
-  image_id      = "ami-05576a079321f21f8"
-  instance_type = "t2.micro"
-  key_name      = "aalimsee-keypair"
+  name                   = "${var.prefix}-db-launch-template"
+  image_id               = var.image_id
+  instance_type          = var.instance_type
+  key_name               = var.key-pair
   update_default_version = true
-  description   = "${var.createdByTerraform}"
+  description            = var.createdByTerraform
 
   metadata_options {
     http_tokens                 = "optional" # Allows both IMDSv1 and IMDSv2
@@ -92,8 +96,8 @@ resource "aws_launch_template" "db_asg_lt" {
 
     # Install HTTP services
     yum install httpd -y
-    echo "<h1>Hello from Database ASG 1, Aaron Lim</h1>" | sudo tee /var/www/html/index.html
-    echo "<h1>Hello from Instance $(curl -s http://169.254.169.254/latest/meta-data/instance-id)</h1>" | sudo tee -a /var/www/html/index.html
+    echo "<h1>Hello from Database EC2 (ASG), Aaron Lim</h1>" | sudo tee /var/www/html/index.html
+    echo "<h1>Instance $(curl -s http://169.254.169.254/latest/meta-data/instance-id)</h1>" | sudo tee -a /var/www/html/index.html
     systemctl start httpd
     systemctl enable httpd
     
@@ -123,7 +127,7 @@ resource "aws_autoscaling_group" "db_asg" {
 
   min_size            = 2
   max_size            = 5
-  desired_capacity    = 2
+  desired_capacity    = 3 # <<< initial 2. with 3, all AZs are used
   vpc_zone_identifier = aws_subnet.aalimsee_tf_private[*].id
 
   tag {
@@ -132,9 +136,9 @@ resource "aws_autoscaling_group" "db_asg" {
     propagate_at_launch = true
   }
 
-    timeouts {
+  timeouts { # <<< should i include here
     #create = "1h"  
-    update = "30m"
+    update = "60m"
     delete = "10m"
-    }
+  }
 }

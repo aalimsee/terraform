@@ -10,7 +10,7 @@ resource "aws_lb" "public_alb" {
 
   tags = {
     Name      = "${var.prefix}-alb"
-    CreatedBy = "${var.createdByTerraform}"
+    CreatedBy = var.createdByTerraform
   }
 }
 
@@ -21,7 +21,7 @@ resource "aws_lb_target_group" "public_tg" {
   name     = "${var.prefix}-alb-target-group"
   port     = 80
   protocol = "HTTP"
-  vpc_id   = aws_vpc.aalimsee_tf_main.id
+  vpc_id   = aws_vpc.aalimsee_tf_vpc.id
 
   health_check {
     interval            = 30
@@ -34,7 +34,7 @@ resource "aws_lb_target_group" "public_tg" {
 
   tags = {
     Name      = "${var.prefix}-alb-tg"
-    CreatedBy = "${var.createdByTerraform}"
+    CreatedBy = var.createdByTerraform
   }
 }
 
@@ -45,8 +45,8 @@ resource "aws_lb_listener" "public_listener" {
   load_balancer_arn = aws_lb.public_alb.arn
   #port              = 80 # <<< update to 443 with HTTPS cert
   #protocol          = "HTTP" # <<< update to 443 with HTTPS cert
-  port = var.use_https ? 443 : 80
-  protocol = var.use_https ? "HTTPS" : "HTTP"
+  port            = var.use_https ? 443 : 80
+  protocol        = var.use_https ? "HTTPS" : "HTTP"
   certificate_arn = var.use_https ? aws_acm_certificate.https_cert.arn : null
 
   default_action {
@@ -69,7 +69,7 @@ resource "aws_lb" "internal_nlb" {
 
   tags = {
     Name      = "${var.prefix}-nlb"
-    CreatedBy = "${var.createdByTerraform}"
+    CreatedBy = var.createdByTerraform
   }
 }
 
@@ -78,9 +78,9 @@ resource "aws_lb" "internal_nlb" {
 #====================================
 resource "aws_lb_target_group" "internal_tg" {
   name     = "${var.prefix}-nlb-target-group"
-  port     = 3128 # <<< changed to 3128
+  port     = 3128  # <<< changed to 3128
   protocol = "TCP" # <<< updated as TCP
-  vpc_id   = aws_vpc.aalimsee_tf_main.id
+  vpc_id   = aws_vpc.aalimsee_tf_vpc.id
 
   # <<< added this block 
   #health_check {
@@ -94,7 +94,7 @@ resource "aws_lb_target_group" "internal_tg" {
 
   tags = {
     Name      = "${var.prefix}-nlb-tg"
-    CreatedBy = "${var.createdByTerraform}"
+    CreatedBy = var.createdByTerraform
   }
 }
 
@@ -103,7 +103,7 @@ resource "aws_lb_target_group" "internal_tg" {
 #====================================
 resource "aws_lb_listener" "internal_listener" {
   load_balancer_arn = aws_lb.internal_nlb.arn
-  port              = 3128 # <<< changed to 3128
+  port              = 3128  # <<< changed to 3128
   protocol          = "TCP" # <<< Listener protocol 'HTTP' must be one of 'UDP, TCP, TCP_UDP, TLS'
 
   default_action {
@@ -129,6 +129,8 @@ data "aws_instances" "asg_instances" {
 
 output "asg_instance_ids" {
   value = data.aws_instances.asg_instances.ids
+
+  depends_on = [aws_launch_template.web_asg_lt] # <<< included for testing output display
 }
 
 #==========================================================
@@ -158,6 +160,8 @@ data "aws_instances" "db_asg_instances" {
 
 output "asg_db_instance_ids" {
   value = data.aws_instances.db_asg_instances.ids
+
+  depends_on = [aws_launch_template.db_asg_lt] # <<< included for testing output display
 }
 
 #==========================================================

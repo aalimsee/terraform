@@ -2,7 +2,7 @@
 # Reference to existing Route 53 Hosted Zone
 #==========================================================
 data "aws_route53_zone" "existing_zone" {
-  name = "sctp-sandbox.com" # Replace with your exact domain
+  name = var.route53_zone # Replace with your exact domain, using existing
 }
 
 #==========================================================
@@ -10,7 +10,7 @@ data "aws_route53_zone" "existing_zone" {
 #==========================================================
 resource "aws_route53_record" "public_alb" { # <<< why "public_alb"
   zone_id = data.aws_route53_zone.existing_zone.id
-  name    = "aalimsee-tf-web" # Subdomain for the web service
+  name    = var.route53_subdomain # Subdomain for the web service
   type    = "A"
   alias {
     name                   = aws_lb.public_alb.dns_name
@@ -23,13 +23,13 @@ resource "aws_route53_record" "public_alb" { # <<< why "public_alb"
 # Request a new ACM Certificate for your domain
 #==========================================================
 resource "aws_acm_certificate" "https_cert" {
-  domain_name       = "aalimsee-tf-web.sctp-sandbox.com" # Replace with your domain
+  domain_name = "${var.route53_subdomain}.${var.route53_zone}" # Replace with your domain
   # <<< change to sctp-sandbox.com
   validation_method = "DNS"
 
   tags = {
-    Name = "${var.prefix}-HTTPS-Certificate"
-    CreatedBy = "${var.createdByTerraform}"
+    Name      = "${var.prefix}-HTTPS-Certificate"
+    CreatedBy = var.createdByTerraform
   }
 
   lifecycle {
@@ -61,7 +61,7 @@ resource "aws_route53_record" "cert_validation" {
 # Validate the ACM Certificate
 #==========================================================
 resource "aws_acm_certificate_validation" "https_cert_validation" {
-  certificate_arn         = aws_acm_certificate.https_cert.arn
+  certificate_arn = aws_acm_certificate.https_cert.arn
 
   validation_record_fqdns = [
     for record in aws_route53_record.cert_validation : record.fqdn
@@ -73,7 +73,7 @@ resource "aws_acm_certificate_validation" "https_cert_validation" {
 # <<< add this block
 # Attach the new certificate to the existing HTTPS listener
 #resource "aws_lb_listener_certificate" "https_cert_attach" {
-  #listener_arn    = data.aws_lb_listener.existing_listener.arn
+#listener_arn    = data.aws_lb_listener.existing_listener.arn
 #  listener_arn    = data.aws_lb_listener.public_listener.arn
 #  certificate_arn = aws_acm_certificate_validation.https_cert_validation.certificate_arn
 #}
@@ -89,7 +89,7 @@ resource "aws_acm_certificate_validation" "https_cert_validation" {
 
 #  default_action {
 #    type = "forward"
-    #target_group_arn = data.aws_lb_target_group.existing_target_group.arn
+#target_group_arn = data.aws_lb_target_group.existing_target_group.arn
 #    target_group_arn = data.aws_autoscaling_group.web_asg.public_tg.arn
 #  }
 #}

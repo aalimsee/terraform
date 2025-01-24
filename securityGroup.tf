@@ -3,23 +3,7 @@
 #====================================
 resource "aws_security_group" "web" {
   name   = "${var.prefix}-web-sg"
-  vpc_id = aws_vpc.aalimsee_tf_main.id
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow HTTP traffic"
-  }
-    # <<< update ALB sg to include HTTPS
-    ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow HTTPS traffic"
-  }
+  vpc_id = aws_vpc.aalimsee_tf_vpc.id
 
   ingress {
     from_port   = 22
@@ -27,6 +11,21 @@ resource "aws_security_group" "web" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
     description = "Allow SSH traffic"
+  }
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow HTTP traffic"
+  }
+  # <<< update ALB sg to include HTTPS
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow HTTPS traffic"
   }
 
   egress {
@@ -39,7 +38,7 @@ resource "aws_security_group" "web" {
 
   tags = {
     Name      = "${var.prefix}-web-sg"
-    CreatedBy = "${var.createdByTerraform}"
+    CreatedBy = var.createdByTerraform
   }
 }
 
@@ -48,17 +47,17 @@ resource "aws_security_group" "web" {
 #====================================
 resource "aws_security_group" "nlb" {
   name   = "${var.prefix}-nlb-sg"
-  vpc_id = aws_vpc.aalimsee_tf_main.id
+  vpc_id = aws_vpc.aalimsee_tf_vpc.id
 
   # Allow inbound traffic for proxy services (e.g., HTTP/HTTPS)
   ingress {
     from_port   = 3128
     to_port     = 3128
     protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/16"]  # Allow access from within the VPC
+    cidr_blocks = ["10.0.0.0/16"] # Allow access from within the VPC
     description = "Allow proxy services to NLB"
   }
-  # Allow inbound ICMP <<<
+  # Allow inbound ICMP for testing purpose <<<
   ingress {
     from_port   = -1
     to_port     = -1
@@ -66,7 +65,6 @@ resource "aws_security_group" "nlb" {
     cidr_blocks = ["0.0.0.0/0"]
     description = "Allow icmp traffic"
   }
-
   ingress {
     from_port   = 22
     to_port     = 22
@@ -74,7 +72,6 @@ resource "aws_security_group" "nlb" {
     cidr_blocks = ["0.0.0.0/0"]
     description = "Allow SSH traffic"
   }
-
   ingress {
     from_port   = 80
     to_port     = 80
@@ -93,7 +90,7 @@ resource "aws_security_group" "nlb" {
 
   tags = {
     Name      = "${var.prefix}-nlb-sg"
-    CreatedBy = "${var.createdByTerraform}"
+    CreatedBy = var.createdByTerraform
   }
 }
 
